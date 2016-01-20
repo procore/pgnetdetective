@@ -27,8 +27,9 @@ var (
 type QueryMetric struct {
 	Query                string
 	TotalNetBytes        uint64
-	TotalResponsePackets int
-	TotalQueryPackets    int
+	TotalResponsePackets uint
+	TotalQueryPackets    uint
+	seqNumbers           map[uint32]bool
 }
 
 func (qm QueryMetric) String() string {
@@ -40,22 +41,42 @@ func (qm QueryMetric) String() string {
 	)
 }
 
-type QueryMetrics []QueryMetric
-
-func (qms QueryMetrics) Len() int {
-	return len(qms)
+type QueryMetrics struct {
+	list  []*QueryMetric
+	cache map[string]*QueryMetric
 }
 
-func (qms QueryMetrics) Less(i, j int) bool {
-	return qms[i].TotalNetBytes < qms[j].TotalNetBytes
+func (qms *QueryMetrics) Add(qm *QueryMetric, seq uint32) {
+	originalQM, ok := qms.cache[qm.Query]
+	if ok {
+		originalQM.TotalNetBytes += qm.TotalNetBytes
+		originalQM.TotalQueryPackets += 1
+		originalQM.TotalResponsePackets += qm.TotalResponsePackets
+		originalQM.seqNumbers[seq] = true
+
+	} else {
+		qm.seqNumbers = make(map[uint32]bool)
+		qm.seqNumbers[seq] = true
+		qms.list = append(qms.list, qm)
+		qms.cache[qm.Query] = qm
+	}
 }
 
-func (qms QueryMetrics) Swap(i, j int) {
-	qms[i], qms[j] = qms[j], qms[i]
+// For implementing sort
+func (qms *QueryMetrics) Len() int {
+	return len(qms.list)
+}
+
+func (qms *QueryMetrics) Less(i, j int) bool {
+	return qms.list[i].TotalNetBytes < qms.list[j].TotalNetBytes
+}
+
+func (qms *QueryMetrics) Swap(i, j int) {
+	qms.list[i], qms.list[j] = qms.list[j], qms.list[i]
 }
 
 func main() {
-	handle, err := pcap.OpenOffline("/home/aj/Code/pgnetdetective/pgsrecord.cap")
+	handle, err := pcap.OpenOffline("/home/aj/Code/pgnetdetective/pgfromdb1.cap")
 	if err != nil {
 		panic(err)
 	}
@@ -85,63 +106,34 @@ func main() {
 		}
 	}
 
-	allQueryMetrics := QueryMetrics{}
+	combinedQueryMetrics := QueryMetrics{
+		list:  []*QueryMetric{},
+		cache: make(map[string]*QueryMetric),
+	}
 	for _, query := range queries {
-		m := QueryMetric{
+		combinedQueryMetrics.Add(&QueryMetric{
 			Query: normalizeQuery(fmt.Sprintf("%s", query.Payload)),
-		}
+		}, query.Seq)
+	}
 
+	for _, query := range combinedQueryMetrics.list {
 		// Trick from - http://stackoverflow.com/a/29006008
 		// This allows for removing responses as they are associated with a particular query.
 		for i := len(responses) - 1; i >= 0; i-- {
-			resp := responses[i]
-
-			if query.Seq == resp.Ack {
-				m.TotalResponsePackets += 1
-				m.TotalNetBytes += uint64(len(resp.Payload))
+			if query.seqNumbers[responses[i].Ack] {
+				query.TotalResponsePackets += 1
+				query.TotalNetBytes += uint64(len(responses[i].Payload))
 
 				// Remove from list of responses
 				responses = append(responses[:i], responses[i+1:]...)
 			}
 		}
-
-		// Add query metric to list
-		allQueryMetrics = append(allQueryMetrics, m)
-	}
-
-	// Deduplicate allQueryMetrics
-	querySet := []string{}
-	seen := map[string]int{}
-	for _, qm := range allQueryMetrics {
-		if _, ok := seen[qm.Query]; !ok {
-			querySet = append(querySet, qm.Query)
-			seen[qm.Query] = 1
-		}
-	}
-
-	combinedQueryMetrics := QueryMetrics{}
-	for _, query := range querySet {
-		cm := QueryMetric{
-			Query: query,
-		}
-
-		for n := len(allQueryMetrics) - 1; n >= 0; n-- {
-			if allQueryMetrics[n].Query == query {
-				cm.TotalQueryPackets += 1
-				cm.TotalNetBytes += allQueryMetrics[n].TotalNetBytes
-				cm.TotalResponsePackets += allQueryMetrics[n].TotalResponsePackets
-
-				allQueryMetrics = append(allQueryMetrics[:n], allQueryMetrics[n+1:]...)
-			}
-		}
-
-		combinedQueryMetrics = append(combinedQueryMetrics, cm)
 	}
 
 	// At the end, sort by TotalNetBytes
-	sort.Sort(combinedQueryMetrics)
+	sort.Sort(&combinedQueryMetrics)
 
-	for _, c := range combinedQueryMetrics {
+	for _, c := range combinedQueryMetrics.list {
 		fmt.Println("******* Query *******")
 		fmt.Println(c.String())
 		fmt.Println("*********************")
