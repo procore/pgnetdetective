@@ -157,5 +157,6 @@ func normalizeQuery(query string) string {
 	normalizeQuery = removesBadlyEscapedQuotesTwo.ReplaceAllString(normalizeQuery, "")
 	normalizeQuery = removesHex.ReplaceAllString(normalizeQuery, "")
 	normalizeQuery = removesNumbers.ReplaceAllString(normalizeQuery, " 0 ")
+	normalizeQuery = strings.Replace(normalizeQuery, "BDPE S", "", -1)
 	return normalizeQuery
 }
