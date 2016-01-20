@@ -121,26 +121,21 @@ func main() {
 
 	combinedQueryMetrics := QueryMetrics{}
 	for _, query := range querySet {
-		TotalNetBytes := uint64(0)
-		TotalQueryPackets := 0
-		TotalResponsePackets := 0
+		cm := QueryMetric{
+			Query: query,
+		}
 
 		for n := len(allQueryMetrics) - 1; n >= 0; n-- {
 			if allQueryMetrics[n].Query == query {
-				TotalQueryPackets += 1
-				TotalNetBytes += allQueryMetrics[n].TotalNetBytes
-				TotalResponsePackets += allQueryMetrics[n].TotalResponsePackets
+				cm.TotalQueryPackets += 1
+				cm.TotalNetBytes += allQueryMetrics[n].TotalNetBytes
+				cm.TotalResponsePackets += allQueryMetrics[n].TotalResponsePackets
 
 				allQueryMetrics = append(allQueryMetrics[:n], allQueryMetrics[n+1:]...)
 			}
 		}
 
-		combinedQueryMetrics = append(combinedQueryMetrics, QueryMetric{
-			Query:                query,
-			TotalNetBytes:        TotalNetBytes,
-			TotalResponsePackets: TotalResponsePackets,
-			TotalQueryPackets:    TotalQueryPackets,
-		})
+		combinedQueryMetrics = append(combinedQueryMetrics, cm)
 	}
 
 	// At the end, sort by TotalNetBytes
