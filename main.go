@@ -88,15 +88,9 @@ func main() {
 		if tcpLayer == nil {
 			continue
 		}
-
-		// Type cast to a TCP packet
 		tcp, _ := tcpLayer.(*layers.TCP)
 
-		// Parse out relevent Query Packets
 		if tcp.DstPort == 5432 {
-			// Below will print it as a string.
-			//fmt.Printf("TCP Packet: %s", tcp.Payload)
-
 			raw := fmt.Sprintf("%s", tcp.Payload)
 			if strings.HasPrefix(raw, "P") {
 				queries = append(queries, tcp)
@@ -106,6 +100,7 @@ func main() {
 		}
 	}
 
+	// Dedup queries.
 	combinedQueryMetrics := QueryMetrics{
 		list:  []*QueryMetric{},
 		cache: make(map[string]*QueryMetric),
@@ -116,23 +111,19 @@ func main() {
 		}, query.Seq)
 	}
 
+	// Go through each QueryMetric and grab data from associated responses
 	for _, query := range combinedQueryMetrics.list {
-		// Trick from - http://stackoverflow.com/a/29006008
-		// This allows for removing responses as they are associated with a particular query.
 		for i := len(responses) - 1; i >= 0; i-- {
 			if query.seqNumbers[responses[i].Ack] {
 				query.TotalResponsePackets += 1
 				query.TotalNetBytes += uint64(len(responses[i].Payload))
-
-				// Remove from list of responses
 				responses = append(responses[:i], responses[i+1:]...)
 			}
 		}
 	}
 
-	// At the end, sort by TotalNetBytes
+	// sorts by TotalNetBytes
 	sort.Sort(&combinedQueryMetrics)
-
 	for _, c := range combinedQueryMetrics.list {
 		fmt.Println("******* Query *******")
 		fmt.Println(c.String())
@@ -141,7 +132,7 @@ func main() {
 
 }
 
-// normalizeQuery - TODO
+// normalizeQuery is used on a raw query payload and returns a cleaned up query string.
 func normalizeQuery(query string) string {
 	normalizeQuery := query[1:]
 	normalizeQuery = fixSpaces.ReplaceAllString(normalizeQuery, " ")
