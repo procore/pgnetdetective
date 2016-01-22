@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/codegangsta/cli"
 	"github.com/dustin/go-humanize"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -13,6 +15,7 @@ import (
 )
 
 var (
+	USAGE     = "USAGE: pgnetdetective /path/to/pcap/file.cap"
 	queries   = []*layers.TCP{}
 	responses = []*layers.TCP{}
 
@@ -76,60 +79,77 @@ func (qms *QueryMetrics) Swap(i, j int) {
 }
 
 func main() {
-	handle, err := pcap.OpenOffline("/home/aj/Code/pgnetdetective/pgfromdb1.cap")
-	if err != nil {
-		panic(err)
-	}
+	app := cli.NewApp()
+	app.Name = "pgnetdetective"
+	app.Version = "0.1"
 
-	// Sorts packets into queries or responses
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-	for packet := range packetSource.Packets() {
-		tcpLayer := packet.Layer(layers.LayerTypeTCP)
-		if tcpLayer == nil {
-			continue
+	app.Action = func(c *cli.Context) {
+		if len(c.Args()) != 1 {
+			fmt.Println(USAGE)
+			os.Exit(1)
 		}
-		tcp, _ := tcpLayer.(*layers.TCP)
+		path := c.Args()[0]
 
-		if tcp.DstPort == 5432 {
-			raw := fmt.Sprintf("%s", tcp.Payload)
-			if strings.HasPrefix(raw, "P") {
-				queries = append(queries, tcp)
+		handle, err := pcap.OpenOffline(path)
+		if err != nil {
+			panic(err)
+		}
+
+		// Sorts packets into queries or responses
+		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+		//packetSource.DecodeOptions = gopacket.DecodeOptions{
+		//	Lazy:   true,
+		//	NoCopy: true,
+		//}
+		for packet := range packetSource.Packets() {
+			tcpLayer := packet.Layer(layers.LayerTypeTCP)
+			if tcpLayer == nil {
+				continue
 			}
-		} else if tcp.SrcPort == 5432 {
-			responses = append(responses, tcp)
-		}
-	}
+			tcp, _ := tcpLayer.(*layers.TCP)
 
-	// Dedup queries.
-	combinedQueryMetrics := QueryMetrics{
-		list:  []*QueryMetric{},
-		cache: make(map[string]*QueryMetric),
-	}
-	for _, query := range queries {
-		combinedQueryMetrics.Add(&QueryMetric{
-			Query: normalizeQuery(fmt.Sprintf("%s", query.Payload)),
-		}, query.Seq)
-	}
-
-	// Go through each QueryMetric and grab data from associated responses
-	for _, query := range combinedQueryMetrics.list {
-		for i := len(responses) - 1; i >= 0; i-- {
-			if query.seqNumbers[responses[i].Ack] {
-				query.TotalResponsePackets += 1
-				query.TotalNetBytes += uint64(len(responses[i].Payload))
-				responses = append(responses[:i], responses[i+1:]...)
+			if tcp.DstPort == 5432 {
+				raw := fmt.Sprintf("%s", tcp.Payload)
+				if strings.HasPrefix(raw, "P") {
+					queries = append(queries, tcp)
+				}
+			} else if tcp.SrcPort == 5432 {
+				responses = append(responses, tcp)
 			}
 		}
+
+		// Dedup queries.
+		combinedQueryMetrics := QueryMetrics{
+			list:  []*QueryMetric{},
+			cache: make(map[string]*QueryMetric),
+		}
+		for _, query := range queries {
+			combinedQueryMetrics.Add(&QueryMetric{
+				Query: normalizeQuery(fmt.Sprintf("%s", query.Payload)),
+			}, query.Seq)
+		}
+
+		// Go through each QueryMetric and grab data from associated responses
+		for _, query := range combinedQueryMetrics.list {
+			for i := len(responses) - 1; i >= 0; i-- {
+				if query.seqNumbers[responses[i].Ack] {
+					query.TotalResponsePackets += 1
+					query.TotalNetBytes += uint64(len(responses[i].Payload))
+					responses = append(responses[:i], responses[i+1:]...)
+				}
+			}
+		}
+
+		// sorts by TotalNetBytes
+		sort.Sort(&combinedQueryMetrics)
+		for _, c := range combinedQueryMetrics.list {
+			fmt.Println("******* Query *******")
+			fmt.Println(c.String())
+			fmt.Println("*********************")
+		}
 	}
 
-	// sorts by TotalNetBytes
-	sort.Sort(&combinedQueryMetrics)
-	for _, c := range combinedQueryMetrics.list {
-		fmt.Println("******* Query *******")
-		fmt.Println(c.String())
-		fmt.Println("*********************")
-	}
-
+	app.Run(os.Args)
 }
 
 // normalizeQuery is used on a raw query payload and returns a cleaned up query string.
