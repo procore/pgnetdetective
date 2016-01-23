@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -116,4 +118,13 @@ func normalizeQuery(query string) string {
 	normalizeQuery = removesNumbers.ReplaceAllString(normalizeQuery, " 0 ")
 	normalizeQuery = strings.Replace(normalizeQuery, "BDPE S", "", -1)
 	return normalizeQuery
+}
+
+func getSenderTimestampFromTcpPacket(pkt *layers.TCP) (uint32, error) {
+	for _, opt := range pkt.Options {
+		if opt.OptionType == 8 {
+			return binary.BigEndian.Uint32(opt.OptionData[:4]), nil
+		}
+	}
+	return 0, errors.New("No timestamp found")
 }
