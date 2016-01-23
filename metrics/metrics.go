@@ -6,6 +6,13 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
+func New(query string, packets uint) *QueryMetric {
+	return &QueryMetric{
+		Query:             query,
+		TotalQueryPackets: packets,
+	}
+}
+
 type QueryMetric struct {
 	Query                string
 	TotalNetBytes        uint64
@@ -22,6 +29,13 @@ func (qm QueryMetric) String() string {
 		qm.TotalResponsePackets,
 		qm.TotalQueryPackets,
 	)
+}
+
+func NewQueryMetrics() *QueryMetrics {
+	return &QueryMetrics{
+		List:  []*QueryMetric{},
+		cache: make(map[string]*QueryMetric),
+	}
 }
 
 type QueryMetrics struct {

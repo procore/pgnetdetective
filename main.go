@@ -70,20 +70,17 @@ func main() {
 					queries = append(queries, tcp)
 				}
 			} else if tcp.SrcPort == 5432 {
-				// Else if the source port is 5432, then it is a response packet.
 				responses = append(responses, tcp)
 			}
 		}
 
 		// Dedup queries.
-		combinedQueryMetrics := metrics.QueryMetrics{
-			List: []*metrics.QueryMetric{},
-		}
+		combinedQueryMetrics := metrics.NewQueryMetrics()
 		for _, query := range queries {
-			combinedQueryMetrics.Add(&metrics.QueryMetric{
-				Query:             normalizeQuery(fmt.Sprintf("%s", query.Payload)),
-				TotalQueryPackets: 1,
-			}, query.Seq)
+			combinedQueryMetrics.Add(
+				metrics.New(normalizeQuery(fmt.Sprintf("%s", query.Payload)), 1),
+				query.Seq,
+			)
 		}
 
 		// Go through each QueryMetric and grab data from associated responses
@@ -98,7 +95,7 @@ func main() {
 		}
 
 		// sorts by TotalNetBytes
-		sort.Sort(&combinedQueryMetrics)
+		sort.Sort(combinedQueryMetrics)
 		for _, c := range combinedQueryMetrics.List {
 			fmt.Println("******* Query *******")
 			fmt.Println(c.String())
