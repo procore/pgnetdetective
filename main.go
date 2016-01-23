@@ -64,7 +64,7 @@ func main() {
 			// If the destination port is 5432...
 			if tcp.DstPort == 5432 {
 				// And the packet payload starts with P...
-				raw := fmt.Sprintf("%s", tcp.Payload)
+				raw := fmt.Sprintf("%s", tcp.LayerPayload)
 				if strings.HasPrefix(raw, "P") {
 					// It is a (Parse) packet that contains a Query
 					queries = append(queries, tcp)
@@ -81,7 +81,7 @@ func main() {
 		}
 		for _, query := range queries {
 			combinedQueryMetrics.Add(&metrics.QueryMetric{
-				Query:             normalizeQuery(fmt.Sprintf("%s", query.Payload)),
+				Query:             normalizeQuery(fmt.Sprintf("%s", query.LayerPayload)),
 				TotalQueryPackets: 1,
 			}, query.Seq)
 		}
@@ -91,7 +91,7 @@ func main() {
 			for i := len(responses) - 1; i >= 0; i-- {
 				if query.SeqNumbers[responses[i].Ack] {
 					query.TotalResponsePackets += 1
-					query.TotalNetBytes += uint64(len(responses[i].Payload))
+					query.TotalNetBytes += uint64(len(responses[i].LayerPayload))
 					responses = append(responses[:i], responses[i+1:]...)
 				}
 			}
