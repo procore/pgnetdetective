@@ -85,13 +85,15 @@ func main() {
 			)
 		}
 
-		// Go through each QueryMetric and grab data from associated responses
-		for _, query := range combinedQueryMetrics.List {
-			for i := len(responses) - 1; i >= 0; i-- {
-				if query.SeqNumbers[responses[i].Ack] {
+		// Go through each response and match it to a QueryMetric
+		// This could be improved by implementing some sort of sequence number
+		// cache, so that we could just ask it 'What QueryMetric does this seq
+		// belong to?', instead of looping over the metrics every time.
+		for _, response := range responses {
+			for _, query := range combinedQueryMetrics.List {
+				if query.SeqNumbers[response.Ack] {
 					query.TotalResponsePackets += 1
-					query.TotalNetBytes += uint64(len(responses[i].Payload))
-					responses = append(responses[:i], responses[i+1:]...)
+					query.TotalNetBytes += uint64(len(response.Payload))
 				}
 			}
 		}
