@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"regexp"
 	"sort"
@@ -21,12 +22,15 @@ import (
 // Figure out how to better associate packets
 //	* Utilize timestamps?
 //  * How does wireshark order its packets? (when looking at Follow TCP Stream)
+// Answer: Wireshark orders the TCP Stream by timestamp. Timestamp will not be perfect, but it will be correct in most cases.
+//         I am very interested in how pgbouncer knows what responses correlate to what queries.
+//
 // For the response packets, only grab the Data row packets
 
 var (
-	USAGE     = "USAGE: pgnetdetective /path/to/pcap/file.cap"
-	queries   = []*layers.TCP{}
-	responses = []*layers.TCP{}
+	USAGE                = "USAGE: pgnetdetective /path/to/pcap/file.cap"
+	combinedQueryMetrics = metrics.NewQueryMetrics()
+	responses            = []*ResponsePacket{}
 
 	// Regex for normalize query
 	fixSpaces                    = regexp.MustCompile("\\s+")
@@ -35,6 +39,12 @@ var (
 	removesHex                   = regexp.MustCompile("[^\x20-\x7e]")
 	removesNumbers               = regexp.MustCompile("([^a-zA-Z0-9_\\$-])-?([0-9]+)")
 )
+
+type ResponsePacket struct {
+	DstIP net.IP
+	Ack   uint32
+	Size  uint64
+}
 
 func main() {
 	app := cli.NewApp()
@@ -57,6 +67,12 @@ func main() {
 		// Sorts packets into queries or responses
 		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 		for packet := range packetSource.Packets() {
+			ipLayer := packet.Layer(layers.LayerTypeIPv4)
+			if ipLayer == nil {
+				continue
+			}
+			ip, _ := ipLayer.(*layers.IPv4)
+
 			tcpLayer := packet.Layer(layers.LayerTypeTCP)
 			if tcpLayer == nil {
 				continue
@@ -69,20 +85,23 @@ func main() {
 				raw := fmt.Sprintf("%s", tcp.Payload)
 				if strings.HasPrefix(raw, "P") {
 					// It is a (Parse) packet that contains a Query
-					queries = append(queries, tcp)
+					combinedQueryMetrics.Add(
+						metrics.New(
+							normalizeQuery(raw),
+							1,
+							ip.SrcIP,
+							tcp.Seq,
+						),
+					)
 				}
-			} else if tcp.SrcPort == 5432 {
-				responses = append(responses, tcp)
+			} else if tcp.SrcPort == 5432 && tcp.ACK {
+				responses = append(responses, &ResponsePacket{
+					DstIP: ip.DstIP,
+					Ack:   tcp.Ack,
+					Size:  uint64(len(tcp.Payload)),
+				},
+				)
 			}
-		}
-
-		// Dedup queries.
-		combinedQueryMetrics := metrics.NewQueryMetrics()
-		for _, query := range queries {
-			combinedQueryMetrics.Add(
-				metrics.New(normalizeQuery(fmt.Sprintf("%s", query.Payload)), 1),
-				query.Seq,
-			)
 		}
 
 		// Go through each response and match it to a QueryMetric
@@ -91,9 +110,9 @@ func main() {
 		// belong to?', instead of looping over the metrics every time.
 		for _, response := range responses {
 			for _, query := range combinedQueryMetrics.List {
-				if query.SeqNumbers[response.Ack] {
+				if query.WasRequestFor(response.DstIP, response.Ack) {
 					query.TotalResponsePackets += 1
-					query.TotalNetBytes += uint64(len(response.Payload))
+					query.TotalNetBytes += response.Size
 				}
 			}
 		}

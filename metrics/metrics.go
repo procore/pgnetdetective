@@ -2,24 +2,37 @@ package metrics
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/dustin/go-humanize"
 )
 
-func New(query string, packets uint) *QueryMetric {
+func New(query string, packets uint, srcIP net.IP, syn uint32) *QueryMetric {
 	return &QueryMetric{
 		Query:             query,
 		TotalQueryPackets: packets,
+		QueryNetUniqueIDs: []*QueryNetUniqueID{&QueryNetUniqueID{SrcIP: srcIP, Syn: syn}},
 	}
 }
 
+type QueryNetUniqueID struct {
+	SrcIP net.IP
+	Syn   uint32
+}
+
 type QueryMetric struct {
-	Query                string
+	Query                string `json:"query"`
 	TotalNetBytes        uint64
 	TotalResponsePackets uint
 	TotalQueryPackets    uint
-	// SeqNumbers is used for associating response packets with query packets.
-	SeqNumbers map[uint32]bool
+	QueryNetUniqueIDs    []*QueryNetUniqueID
+}
+
+func NewQueryMetrics() *QueryMetrics {
+	return &QueryMetrics{
+		List:  []*QueryMetric{},
+		cache: make(map[string]*QueryMetric),
+	}
 }
 
 func (qm QueryMetric) String() string {
@@ -31,29 +44,32 @@ func (qm QueryMetric) String() string {
 	)
 }
 
-func NewQueryMetrics() *QueryMetrics {
-	return &QueryMetrics{
-		List:  []*QueryMetric{},
-		cache: make(map[string]*QueryMetric),
+func (qm QueryMetric) WasRequestFor(dstIP net.IP, ack uint32) bool {
+	for _, uid := range qm.QueryNetUniqueIDs {
+		if uid.SrcIP.Equal(dstIP) && uid.Syn == ack {
+			return true
+		}
 	}
+	return false
 }
 
+// QueryMetrics
 type QueryMetrics struct {
 	List  []*QueryMetric
 	cache map[string]*QueryMetric
 }
 
-func (qms *QueryMetrics) Add(qm *QueryMetric, seq uint32) {
+func (qms *QueryMetrics) Add(qm *QueryMetric) {
 	originalQM, ok := qms.cache[qm.Query]
 	if ok {
 		originalQM.TotalNetBytes += qm.TotalNetBytes
 		originalQM.TotalQueryPackets += 1
 		originalQM.TotalResponsePackets += qm.TotalResponsePackets
-		originalQM.SeqNumbers[seq] = true
-
+		originalQM.QueryNetUniqueIDs = append(
+			originalQM.QueryNetUniqueIDs,
+			qm.QueryNetUniqueIDs...,
+		)
 	} else {
-		qm.SeqNumbers = make(map[uint32]bool)
-		qm.SeqNumbers[seq] = true
 		qms.List = append(qms.List, qm)
 		qms.cache[qm.Query] = qm
 	}
