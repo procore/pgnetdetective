@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -66,6 +64,7 @@ func main() {
 
 		// Sorts packets into queries or responses
 		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+		var raw string
 		for packet := range packetSource.Packets() {
 			ipLayer := packet.Layer(layers.LayerTypeIPv4)
 			if ipLayer == nil {
@@ -82,7 +81,7 @@ func main() {
 			// If the destination port is 5432...
 			if tcp.DstPort == 5432 {
 				// And the packet payload starts with P...
-				raw := fmt.Sprintf("%s", tcp.Payload)
+				raw = fmt.Sprintf("%s", tcp.Payload)
 				if strings.HasPrefix(raw, "P") {
 					// It is a (Parse) packet that contains a Query
 					combinedQueryMetrics.Add(
@@ -108,11 +107,12 @@ func main() {
 		// This could be improved by implementing some sort of sequence number
 		// cache, so that we could just ask it 'What QueryMetric does this seq
 		// belong to?', instead of looping over the metrics every time.
-		for _, response := range responses {
-			for _, query := range combinedQueryMetrics.List {
-				if query.WasRequestFor(response.DstIP, response.Ack) {
+		for _, query := range combinedQueryMetrics.List {
+			for i := len(responses) - 1; i >= 0; i-- {
+				if query.WasRequestFor(responses[i].DstIP, responses[i].Ack) {
 					query.TotalResponsePackets += 1
-					query.TotalNetBytes += response.Size
+					query.TotalNetBytes += responses[i].Size
+					responses = append(responses[:i], responses[i+1:]...)
 				}
 			}
 		}
@@ -139,13 +139,4 @@ func normalizeQuery(query string) string {
 	normalizeQuery = removesNumbers.ReplaceAllString(normalizeQuery, " 0 ")
 	normalizeQuery = strings.Replace(normalizeQuery, "BDPE S", "", -1)
 	return normalizeQuery
-}
-
-func getSenderTimestampFromTcpPacket(pkt *layers.TCP) (uint32, error) {
-	for _, opt := range pkt.Options {
-		if opt.OptionType == 8 {
-			return binary.BigEndian.Uint32(opt.OptionData[:4]), nil
-		}
-	}
-	return 0, errors.New("No timestamp found")
 }
