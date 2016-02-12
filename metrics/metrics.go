@@ -1,4 +1,4 @@
-package main
+package metrics
 
 import (
 	"fmt"
@@ -13,11 +13,11 @@ type QueryNetUniqueID struct {
 }
 
 type QueryMetric struct {
-	Query                string `json:"query"`
-	TotalNetBytes        uint64
-	TotalResponsePackets uint
-	TotalQueryPackets    uint
-	QueryNetUniqueIDs    []*QueryNetUniqueID
+	Query                string              `json:"query"`
+	TotalNetworkLoad     uint64              `json:"total_net_bytes"`
+	TotalResponsePackets uint                `json:"total_response_packets"`
+	TotalQueryPackets    uint                `json:"total_query_packets"`
+	QueryNetUniqueIDs    []*QueryNetUniqueID `json:"-"`
 }
 
 func New(query string, packets uint, srcIP net.IP, syn uint32) *QueryMetric {
@@ -29,9 +29,9 @@ func New(query string, packets uint, srcIP net.IP, syn uint32) *QueryMetric {
 }
 
 func (qm QueryMetric) String() string {
-	return fmt.Sprintf("Query: %s\nTotalNetBytes: %s\nTotalResponsePackets: %d\nTotalQueryPackets: %d\n",
+	return fmt.Sprintf("Query: %s\nTotalNetworkLoad: %s\nTotalResponsePackets: %d\nTotalQueryPackets: %d\n",
 		qm.Query,
-		humanize.Bytes(qm.TotalNetBytes),
+		humanize.Bytes(qm.TotalNetworkLoad),
 		qm.TotalResponsePackets,
 		qm.TotalQueryPackets,
 	)
@@ -48,8 +48,8 @@ func (qm QueryMetric) WasRequestFor(dstIP net.IP, ack uint32) bool {
 
 // QueryMetrics
 type QueryMetrics struct {
-	List  []*QueryMetric
-	cache map[string]*QueryMetric
+	List  []*QueryMetric          `json:"query_metrics"`
+	cache map[string]*QueryMetric `json:"-"`
 }
 
 func NewQueryMetrics() *QueryMetrics {
@@ -62,7 +62,7 @@ func NewQueryMetrics() *QueryMetrics {
 func (qms *QueryMetrics) Add(qm *QueryMetric) {
 	originalQM, ok := qms.cache[qm.Query]
 	if ok {
-		originalQM.TotalNetBytes += qm.TotalNetBytes
+		originalQM.TotalNetworkLoad += qm.TotalNetworkLoad
 		originalQM.TotalQueryPackets += 1
 		originalQM.TotalResponsePackets += qm.TotalResponsePackets
 		originalQM.QueryNetUniqueIDs = append(
@@ -80,7 +80,7 @@ func (qms *QueryMetrics) Len() int {
 }
 
 func (qms *QueryMetrics) Less(i, j int) bool {
-	return qms.List[i].TotalNetBytes < qms.List[j].TotalNetBytes
+	return qms.List[i].TotalNetworkLoad < qms.List[j].TotalNetworkLoad
 }
 
 func (qms *QueryMetrics) Swap(i, j int) {

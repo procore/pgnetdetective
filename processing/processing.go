@@ -1,9 +1,11 @@
-package main
+package processing
 
 import (
 	"fmt"
 	"net"
 	"strings"
+
+	"github.com/procore/pgnetdetective/metrics"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -16,8 +18,8 @@ type ResponsePacket struct {
 	Size  uint64
 }
 
-func ExtractPGPackets(handle *pcap.Handle) (*QueryMetrics, []*ResponsePacket) {
-	combinedQueryMetrics := NewQueryMetrics()
+func ExtractPGPackets(handle *pcap.Handle) (*metrics.QueryMetrics, []*ResponsePacket) {
+	combinedQueryMetrics := metrics.NewQueryMetrics()
 	responses := []*ResponsePacket{}
 	// Sorts packets into queries or responses
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
@@ -42,7 +44,7 @@ func ExtractPGPackets(handle *pcap.Handle) (*QueryMetrics, []*ResponsePacket) {
 			if strings.HasPrefix(raw, "P") {
 				// It is a (Parse) packet that contains a Query
 				combinedQueryMetrics.Add(
-					New(
+					metrics.New(
 						normalizeQuery(raw),
 						1,
 						ip.SrcIP,
@@ -63,7 +65,7 @@ func ExtractPGPackets(handle *pcap.Handle) (*QueryMetrics, []*ResponsePacket) {
 }
 
 // AssociatePGPacket will go through each response and match it to a QueryMetric
-func AssociatePGPackets(combinedQueryMetrics *QueryMetrics, responses []*ResponsePacket) {
+func AssociatePGPackets(combinedQueryMetrics *metrics.QueryMetrics, responses []*ResponsePacket) {
 	// This could be improved by implementing some sort of sequence number
 	// cache, so that we could just ask it 'What QueryMetric does this seq
 	// belong to?', instead of looping over the metrics every time.
@@ -71,7 +73,7 @@ func AssociatePGPackets(combinedQueryMetrics *QueryMetrics, responses []*Respons
 		for i := len(responses) - 1; i >= 0; i-- {
 			if query.WasRequestFor(responses[i].DstIP, responses[i].Ack) {
 				query.TotalResponsePackets += 1
-				query.TotalNetBytes += responses[i].Size
+				query.TotalNetworkLoad += responses[i].Size
 				responses = append(responses[:i], responses[i+1:]...)
 			}
 		}

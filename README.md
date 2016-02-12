@@ -13,13 +13,3 @@ Features:
     Output:
     * Generate Top-Level Metrics
     * Generate Per-Query Metrics
-    * Output as JSON, CSV, or Pretty Text
-
-Interface:
-* Command Line Interface
-* Usable as a library
-
-Libraries:
-* metrics
-* capture
-* processing
