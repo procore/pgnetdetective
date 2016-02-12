@@ -79,6 +79,7 @@ func (qms *QueryMetrics) Len() int {
 	return len(qms.List)
 }
 
+// This allows for sorting to have the QueryMetrics with the highest TotalNetworkLoad at the end of the list.
 func (qms *QueryMetrics) Less(i, j int) bool {
 	return qms.List[i].TotalNetworkLoad < qms.List[j].TotalNetworkLoad
 }
