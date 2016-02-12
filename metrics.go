@@ -1,4 +1,4 @@
-package metrics
+package main
 
 import (
 	"fmt"
@@ -6,14 +6,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 )
-
-func New(query string, packets uint, srcIP net.IP, syn uint32) *QueryMetric {
-	return &QueryMetric{
-		Query:             query,
-		TotalQueryPackets: packets,
-		QueryNetUniqueIDs: []*QueryNetUniqueID{&QueryNetUniqueID{SrcIP: srcIP, Syn: syn}},
-	}
-}
 
 type QueryNetUniqueID struct {
 	SrcIP net.IP
@@ -28,10 +20,11 @@ type QueryMetric struct {
 	QueryNetUniqueIDs    []*QueryNetUniqueID
 }
 
-func NewQueryMetrics() *QueryMetrics {
-	return &QueryMetrics{
-		List:  []*QueryMetric{},
-		cache: make(map[string]*QueryMetric),
+func New(query string, packets uint, srcIP net.IP, syn uint32) *QueryMetric {
+	return &QueryMetric{
+		Query:             query,
+		TotalQueryPackets: packets,
+		QueryNetUniqueIDs: []*QueryNetUniqueID{&QueryNetUniqueID{SrcIP: srcIP, Syn: syn}},
 	}
 }
 
@@ -59,6 +52,13 @@ type QueryMetrics struct {
 	cache map[string]*QueryMetric
 }
 
+func NewQueryMetrics() *QueryMetrics {
+	return &QueryMetrics{
+		List:  []*QueryMetric{},
+		cache: make(map[string]*QueryMetric),
+	}
+}
+
 func (qms *QueryMetrics) Add(qm *QueryMetric) {
 	originalQM, ok := qms.cache[qm.Query]
 	if ok {
@@ -75,7 +75,6 @@ func (qms *QueryMetrics) Add(qm *QueryMetric) {
 	}
 }
 
-// For implementing sort
 func (qms *QueryMetrics) Len() int {
 	return len(qms.List)
 }

@@ -2,47 +2,16 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
-	"regexp"
 	"sort"
-	"strings"
-
-	"github.com/procore/pgnetdetective/metrics"
 
 	"github.com/codegangsta/cli"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 )
 
-// TODO
-// Figure out how to better associate packets
-//	* Utilize timestamps?
-//  * How does wireshark order its packets? (when looking at Follow TCP Stream)
-// Answer: Wireshark orders the TCP Stream by timestamp. Timestamp will not be perfect, but it will be correct in most cases.
-//         I am very interested in how pgbouncer knows what responses correlate to what queries.
-//
-// For the response packets, only grab the Data row packets
-
 var (
-	USAGE                = "USAGE: pgnetdetective /path/to/pcap/file.cap"
-	combinedQueryMetrics = metrics.NewQueryMetrics()
-	responses            = []*ResponsePacket{}
-
-	// Regex for normalize query
-	fixSpaces                    = regexp.MustCompile("\\s+")
-	removesBadlyEscapedQuotes    = regexp.MustCompile("\\'")
-	removesBadlyEscapedQuotesTwo = regexp.MustCompile("''('')+")
-	removesHex                   = regexp.MustCompile("[^\x20-\x7e]")
-	removesNumbers               = regexp.MustCompile("([^a-zA-Z0-9_\\$-])-?([0-9]+)")
+	USAGE = "USAGE: pgnetdetective pcap_file.cap"
 )
-
-type ResponsePacket struct {
-	DstIP net.IP
-	Ack   uint32
-	Size  uint64
-}
 
 func main() {
 	app := cli.NewApp()
@@ -62,63 +31,12 @@ func main() {
 			panic(err)
 		}
 
-		// Sorts packets into queries or responses
-		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-		var raw string
-		for packet := range packetSource.Packets() {
-			ipLayer := packet.Layer(layers.LayerTypeIPv4)
-			if ipLayer == nil {
-				continue
-			}
-			ip, _ := ipLayer.(*layers.IPv4)
+		combinedQueryMetrics, responses := ExtractPGPackets(handle)
 
-			tcpLayer := packet.Layer(layers.LayerTypeTCP)
-			if tcpLayer == nil {
-				continue
-			}
-			tcp, _ := tcpLayer.(*layers.TCP)
+		AssociatePGPackets(combinedQueryMetrics, responses)
 
-			// If the destination port is 5432...
-			if tcp.DstPort == 5432 {
-				// And the packet payload starts with P...
-				raw = fmt.Sprintf("%s", tcp.Payload)
-				if strings.HasPrefix(raw, "P") {
-					// It is a (Parse) packet that contains a Query
-					combinedQueryMetrics.Add(
-						metrics.New(
-							normalizeQuery(raw),
-							1,
-							ip.SrcIP,
-							tcp.Seq,
-						),
-					)
-				}
-			} else if tcp.SrcPort == 5432 && tcp.ACK {
-				responses = append(responses, &ResponsePacket{
-					DstIP: ip.DstIP,
-					Ack:   tcp.Ack,
-					Size:  uint64(len(tcp.Payload)),
-				},
-				)
-			}
-		}
-
-		// Go through each response and match it to a QueryMetric
-		// This could be improved by implementing some sort of sequence number
-		// cache, so that we could just ask it 'What QueryMetric does this seq
-		// belong to?', instead of looping over the metrics every time.
-		for _, query := range combinedQueryMetrics.List {
-			for i := len(responses) - 1; i >= 0; i-- {
-				if query.WasRequestFor(responses[i].DstIP, responses[i].Ack) {
-					query.TotalResponsePackets += 1
-					query.TotalNetBytes += responses[i].Size
-					responses = append(responses[:i], responses[i+1:]...)
-				}
-			}
-		}
-
-		// sorts by TotalNetBytes
 		sort.Sort(combinedQueryMetrics)
+
 		for _, c := range combinedQueryMetrics.List {
 			fmt.Println("******* Query *******")
 			fmt.Println(c.String())
@@ -127,16 +45,4 @@ func main() {
 	}
 
 	app.Run(os.Args)
-}
-
-// normalizeQuery is used on a raw query payload and returns a cleaned up query string.
-func normalizeQuery(query string) string {
-	normalizeQuery := query[1:]
-	normalizeQuery = fixSpaces.ReplaceAllString(normalizeQuery, " ")
-	normalizeQuery = removesBadlyEscapedQuotes.ReplaceAllString(normalizeQuery, "")
-	normalizeQuery = removesBadlyEscapedQuotesTwo.ReplaceAllString(normalizeQuery, "")
-	normalizeQuery = removesHex.ReplaceAllString(normalizeQuery, "")
-	normalizeQuery = removesNumbers.ReplaceAllString(normalizeQuery, " 0 ")
-	normalizeQuery = strings.Replace(normalizeQuery, "BDPE S", "", -1)
-	return normalizeQuery
 }
