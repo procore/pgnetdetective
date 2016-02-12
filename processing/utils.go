@@ -15,7 +15,7 @@ var (
 )
 
 // normalizeQuery is used on a raw query payload and returns a cleaned up query string.
-func normalizeQuery(query string) string {
+func NormalizeQuery(query string) string {
 	normalizeQuery := query[1:]
 	normalizeQuery = fixSpaces.ReplaceAllString(normalizeQuery, " ")
 	normalizeQuery = removesBadlyEscapedQuotes.ReplaceAllString(normalizeQuery, "")

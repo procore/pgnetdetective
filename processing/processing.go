@@ -45,7 +45,7 @@ func ExtractPGPackets(handle *pcap.Handle) (*metrics.QueryMetrics, []*ResponsePa
 				// It is a (Parse) packet that contains a Query
 				combinedQueryMetrics.Add(
 					metrics.New(
-						normalizeQuery(raw),
+						NormalizeQuery(raw),
 						1,
 						ip.SrcIP,
 						tcp.Seq,
