@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
-	"fmt"
 	"os"
 	"sort"
 
@@ -21,8 +21,16 @@ func main() {
 
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
+			Name:  "bytes",
+			Usage: "Display bytes instead of as Human-Readable",
+		},
+		cli.BoolFlag{
 			Name:  "json",
 			Usage: "Output as json",
+		},
+		cli.BoolFlag{
+			Name:  "csv",
+			Usage: "Output as csv",
 		},
 		cli.IntFlag{
 			Name:  "limit",
@@ -59,6 +67,8 @@ func main() {
 			combinedQueryMetrics = limitedQueryMetrics
 		}
 
+		combinedQueryMetrics.DisplayBytes = c.Bool("bytes")
+
 		sort.Sort(combinedQueryMetrics)
 
 		if c.Bool("json") {
@@ -67,12 +77,15 @@ func main() {
 				panic(err)
 			}
 			os.Stdout.Write(out)
-		} else {
-			for _, c := range combinedQueryMetrics.List {
-				fmt.Println("******* Query *******")
-				fmt.Println(c.String())
-				fmt.Println("*********************")
+		} else if c.Bool("csv") {
+			w := csv.NewWriter(os.Stdout)
+			w.WriteAll(combinedQueryMetrics.CsvString())
+
+			if err := w.Error(); err != nil {
+				panic(err)
 			}
+		} else {
+			combinedQueryMetrics.PrintText()
 		}
 	}
 
