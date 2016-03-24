@@ -57,8 +57,7 @@ func ExtractPGPackets(handle *pcap.Handle) (*metrics.QueryMetrics, []*ResponsePa
 				DstIP: ip.DstIP,
 				Ack:   tcp.Ack,
 				Size:  uint64(len(tcp.Payload)),
-			},
-			)
+			})
 		}
 	}
 	return combinedQueryMetrics, responses
