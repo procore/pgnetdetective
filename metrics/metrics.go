@@ -56,9 +56,9 @@ func (qm QueryMetric) WasRequestFor(dstIP net.IP, ack uint32) bool {
 
 // QueryMetrics
 type QueryMetrics struct {
-	List         []*QueryMetric          `json:"query_metrics"`
-	cache        map[string]*QueryMetric `json:"-"`
-	DisplayBytes bool                    `json:"-"`
+	List         []*QueryMetric `json:"query_metrics"`
+	cache        map[string]*QueryMetric
+	DisplayBytes bool `json:"-"`
 }
 
 func NewQueryMetrics() *QueryMetrics {

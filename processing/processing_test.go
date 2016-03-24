@@ -12,7 +12,10 @@ func TestAssociatePGPackets(t *testing.T) {
 	metric := &metrics.QueryMetric{
 		Query: "select * from table",
 		QueryNetUniqueIDs: []*metrics.QueryNetUniqueID{
-			&metrics.QueryNetUniqueID{net.IPv4(111, 111, 111, 111), uint32(43212)},
+			&metrics.QueryNetUniqueID{
+				SrcIP: net.IPv4(111, 111, 111, 111),
+				Syn:   uint32(43212),
+			},
 		},
 	}
 
