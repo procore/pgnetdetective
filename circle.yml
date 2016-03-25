@@ -1,0 +1,3 @@
+test:
+  pre:
+    - go vet ./...
