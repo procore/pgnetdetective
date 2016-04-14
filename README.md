@@ -58,7 +58,7 @@ GLOBAL OPTIONS:
 ```
 
 ## Licence
-pgnetdetective is copyright © 2015 Procore. It is free software, and may be redistributed under the terms specified in the LICENSE file.
+pgnetdetective is copyright © 2016 Procore. It is free software, and may be redistributed under the terms specified in the LICENSE file.
 
 ## About Procore
 
