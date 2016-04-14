@@ -16,6 +16,14 @@ $ go run main.go
 
 ### Using `tcpdump` to capture the traffic
 
+This can be done using this command:
+```
+tcpdump -n -s 0 -w ~/pg.cap -i any port 5432
+```
+
 ### Using `pgnetdetective` to capture the traffic
 
-
+Once you have a pcap capture file, running pgnetdetective on it is as easy as:
+```
+pgnetdetective ~/pg.cap
+```
