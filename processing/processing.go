@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"strings"
 
@@ -24,7 +25,15 @@ func ExtractPGPackets(handle *pcap.Handle) (*metrics.QueryMetrics, []*ResponsePa
 	// Sorts packets into queries or responses
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	var raw string
-	for packet := range packetSource.Packets() {
+	for {
+		packet, err := packetSource.NextPacket()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			fmt.Println("Error: ", err)
+			continue
+		}
+
 		ipLayer := packet.Layer(layers.LayerTypeIPv4)
 		if ipLayer == nil {
 			continue
