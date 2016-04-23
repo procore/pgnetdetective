@@ -98,7 +98,7 @@ func getTopApplePicker(db *sql.DB) (*ApplePicker, error) {
 func main() {
 	rand.Seed(time.Now().Unix())
 
-	fmt.Println("Conecting to the database...")
+	fmt.Println("Connecting to the database...")
 	db, err := sql.Open("postgres", "postgres://pgnet:pgnet@127.0.0.1:5432/apple_picker_extreme?sslmode=disable")
 	if err != nil {
 		panic(err)
