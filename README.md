@@ -57,6 +57,8 @@ GLOBAL OPTIONS:
    --version, -v        print the version
 ```
 
+-----
+
 ## Licence
 pgnetdetective is copyright © 2016 Procore. It is free software, and may be redistributed under the terms specified in the LICENSE file.
 
@@ -70,6 +72,8 @@ pgnetdetective is copyright © 2016 Procore. It is free software, and may be red
 
 pgnetdetective is maintained by Procore Technologies.
 
-Procore - building the software that builds the world. 
+Procore - building the software that builds the world.
 
 Learn more about the #1 most widely used construction management software at [procore.com](https://www.procore.com/)
+
+Contact us at opensource@procore.com
