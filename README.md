@@ -1,6 +1,6 @@
 # pgnetdetective
 
-A command line tool for converting pcap capture files (using tcpdump for example) into usable statics about your PostgreSQL network traffic.
+A command line tool for converting pcap capture files (using tcpdump for example) into usable statistics about your PostgreSQL network traffic.
 
 ## Installation
 
