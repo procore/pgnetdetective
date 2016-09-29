@@ -5,3 +5,5 @@ CREATE TABLE apple_picker (
     name VARCHAR(255) NOT NULL,
     apples_picked INTEGER NOT NULL
 );
+
+GRANT ALL ON apple_picker TO pgnet;
