@@ -21,7 +21,7 @@ This can be done using this command:
 tcpdump -n -s 0 -w ~/pg.cap -i any port 5432
 ```
 
-### Using `pgnetdetective` to capture the traffic
+### Using `pgnetdetective` to analyze the traffic
 
 Once you have a pcap capture file, running pgnetdetective on it is as easy as:
 ```
