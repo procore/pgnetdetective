@@ -6,4 +6,4 @@ CREATE TABLE apple_picker (
     apples_picked INTEGER NOT NULL
 );
 
-ALTER TABLE apple_picker_extreme OWNER TO pgnet;
+GRANT ALL ON apple_picker TO pgnet;
