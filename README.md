@@ -50,9 +50,8 @@ COMMANDS:
 
 GLOBAL OPTIONS:
    --bytes              Display bytes instead of as Human-Readable
-   --json               Output as json
-   --csv                Output as csv
-   --limit "0"          Limit output based on NetworkLoad size in kilobytes
+   --output value       Specify output file format: [text|json|csv] (default: "text") 
+   --limit value   Limit output based on NetworkLoad size in kilobytes (default: 0)
    --help, -h           show help
    --version, -v        print the version
 ```
