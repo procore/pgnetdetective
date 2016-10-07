@@ -24,13 +24,10 @@ func main() {
 			Name:  "bytes",
 			Usage: "Display bytes instead of as Human-Readable",
 		},
-		cli.BoolFlag{
-			Name:  "json",
-			Usage: "Output as json",
-		},
-		cli.BoolFlag{
-			Name:  "csv",
-			Usage: "Output as csv",
+		cli.StringFlag{
+			Name:  "output",
+			Value: "text",
+			Usage: "Specify output file format: [text|json|csv]",
 		},
 		cli.IntFlag{
 			Name:  "limit",
@@ -71,13 +68,13 @@ func main() {
 
 		sort.Sort(combinedQueryMetrics)
 
-		if c.Bool("json") {
+		if c.String("output") == "json" {
 			out, err := json.Marshal(combinedQueryMetrics)
 			if err != nil {
 				panic(err)
 			}
 			os.Stdout.Write(out)
-		} else if c.Bool("csv") {
+		} else if c.String("output") == "csv" {
 			w := csv.NewWriter(os.Stdout)
 			w.WriteAll(combinedQueryMetrics.CsvString())
 
